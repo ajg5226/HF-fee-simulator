@@ -3,72 +3,8 @@ import pandas as pd
 import numpy as np
 import altair as alt
 from io import BytesIO
+from feesim.engine import calculate_scheme, performance_metrics
 
-
-def calculate_scheme(df, scheme, initial_aum):
-    records = []
-    aum = initial_aum
-    hwm_value = initial_aum
-
-    for row in df.itertuples(index=False):
-        aum_start = aum
-        gross = float(row.GrossReturn)
-
-        # Management fee (prorated monthly)
-        mgmt_rev = scheme.get('mgmt', 0) / 12 * aum_start
-        aum_after = aum_start * (1 + gross)
-
-        # Determine gain subject to HWM or baseline
-        gain_excess = max(0, aum_after - (hwm_value if scheme.get('hwm', False) else aum_start))
-
-        # Performance fee calculation
-        perf_rev = 0.0
-        if scheme.get('tiered', False) and gain_excess > 0:
-            prop = gain_excess / aum_start
-            remaining = prop
-            fee_prop = 0.0
-            lower = 0.0
-            for tier in scheme['tiers']:
-                upper = tier['threshold'] if tier['threshold'] is not None else float('inf')
-                slice_width = min(upper - lower, remaining)
-                if slice_width <= 0:
-                    break
-                fee_prop += slice_width * tier['manager_share']
-                remaining -= slice_width
-                lower = upper
-            perf_rev = fee_prop * aum_start
-        elif not scheme.get('tiered', False) and gain_excess > 0:
-            monthly_hurdle = scheme.get('hurdle', 0) / 12
-            perf_rev = scheme.get('perf', 0) * max(0, gross - monthly_hurdle) * aum_start
-
-        # Deduct fees & update AUM and HWM
-        aum_end = aum_after - mgmt_rev - perf_rev
-        if scheme.get('hwm', False):
-            hwm_value = max(hwm_value, aum_end)
-
-        # Net return after fees
-        net_return = (aum_end / aum_start) - 1
-        records.append({
-            'Date': row.Date,
-            'GrossReturn': gross,
-            'NetReturn': net_return,
-            'MgmtFeeRevenue': mgmt_rev,
-            'PerfFeeRevenue': perf_rev,
-            'AUM_End': aum_end
-        })
-        aum = aum_end
-
-    monthly_df = pd.DataFrame(records)
-    monthly_df['Year'] = monthly_df['Date'].dt.year
-    annual_rev = monthly_df.groupby('Year').agg({
-        'MgmtFeeRevenue': 'sum',
-        'PerfFeeRevenue': 'sum'
-    }).rename(columns={
-        'MgmtFeeRevenue': 'AnnualMgmtRev',
-        'PerfFeeRevenue': 'AnnualPerfRev'
-    })
-    annual_rev['TotalFeeRev'] = annual_rev['AnnualMgmtRev'] + annual_rev['AnnualPerfRev']
-    return monthly_df, annual_rev
 
 # Streamlit App
 st.title("Hedge Fund Fee Simulator")
