@@ -277,5 +277,14 @@ if uploaded:
               .apply(lambda x: (x + 1).prod() - 1)
         )
         yearly_dict['Benchmark'] = yearly_bench
-        yearly_df = pd.DataFrame(yearly_dict).sort_index()
+        # Ensure each entry is 1-D:
+        for k, v in yearly_dict.items():
+            if isinstance(v, pd.DataFrame):
+                yearly_dict[k] = v.squeeze()
+            elif isinstance(v, np.ndarray) and v.ndim == 2:
+                yearly_dict[k] = v.flatten()
+        
+        # Build via concat
+        yearly_df = pd.concat(yearly_dict, axis=1).sort_index()
         st.dataframe(yearly_df)
+
