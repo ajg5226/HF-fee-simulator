@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import altair as alt
 from io import BytesIO
+import yfinance as yf
 
 from feesim.engine import calculate_scheme, performance_metrics
 import config
@@ -24,6 +25,34 @@ if uploaded:
         st.error(f"CSV missing required columns: {', '.join(missing)}")
         st.stop()
 
+    # Benchmark ticker input
+    bench_ticker = st.text_input("Benchmark ticker", value="SPY")
+
+    # Download and compute monthly benchmark returns
+    start_date = df['Date'].min().strftime("%Y-%m-%d")
+    end_date   = df['Date'].max().strftime("%Y-%m-%d")
+    try:
+        bench_prices = yf.download(
+            bench_ticker,
+            start=start_date,
+            end=end_date,
+            interval="1mo",
+            progress=False
+        )['Adj Close']
+        bench_returns = bench_prices.pct_change().dropna()
+        # Align to fund dates
+        bench_returns.index = pd.to_datetime(bench_returns.index).normalize()
+        monthly_bench = bench_returns.reindex(
+            df['Date'].dt.normalize()
+        ).ffill().fillna(0)
+    except Exception as e:
+        st.error(f"Error fetching benchmark data for {bench_ticker}: {e}")
+        st.stop()
+
+    # Annualized benchmark return
+    n_periods = len(monthly_bench)
+    ann_ret_bench = (monthly_bench + 1).prod() ** (12 / n_periods) - 1
+
     # Initial AUM input
     initial_aum_str = st.text_input(
         "Initial AUM",
@@ -42,9 +71,9 @@ if uploaded:
     schemes = []
     for i in range(int(n_schemes)):
         with st.expander(f"Scheme {i+1}"):
-            name = st.text_input(f"Name (scheme {i+1})", value=f"Scheme {i+1}")
-            hwm = st.checkbox("High-water mark", value=True, key=f"hwm_{i}")
-            tiered = st.checkbox("Tiered waterfall", key=f"tiered_{i}")
+            name   = st.text_input(f"Name (scheme {i+1})", value=f"Scheme {i+1}")
+            hwm    = st.checkbox("High-water mark", value=True, key=f"hwm_{i}")
+            tiered = st.checkbox("Tiered waterfall",    key=f"tiered_{i}")
 
             tiers = []
             if tiered:
@@ -55,36 +84,48 @@ if uploaded:
                     st.markdown(f"**Tier {t+1}**")
                     if t < n_tiers - 1:
                         thresh = st.number_input(
-                            "Upper threshold (decimal)", min_value=0.0, max_value=1.0,
-                            value=0.01*(t+1), key=f"thresh_{i}_{t}"
+                            "Upper threshold (decimal)",
+                            min_value=0.0, max_value=1.0,
+                            value=0.01*(t+1),
+                            key=f"thresh_{i}_{t}"
                         )
                     else:
                         thresh = None
                     share = st.number_input(
-                        "Manager share (0-1)", min_value=0.0, max_value=1.0,
-                        value=0.5, key=f"share_{i}_{t}"
+                        "Manager share (0-1)",
+                        min_value=0.0, max_value=1.0,
+                        value=0.5,
+                        key=f"share_{i}_{t}"
                     )
                     tiers.append({'threshold': thresh, 'manager_share': share})
             else:
-                mgmt = st.number_input(
-                    "Mgmt fee % (annual)", min_value=0.0, max_value=5.0, value=2.0, key=f"mgmt_{i}"
+                mgmt   = st.number_input(
+                    "Mgmt fee % (annual)",
+                    min_value=0.0, max_value=5.0,
+                    value=2.0,
+                    key=f"mgmt_{i}"
                 ) / 100
-                perf = st.number_input(
-                    "Perf fee %", min_value=0.0, max_value=100.0, value=20.0, key=f"perf_{i}"
+                perf   = st.number_input(
+                    "Perf fee %",
+                    min_value=0.0, max_value=100.0,
+                    value=20.0,
+                    key=f"perf_{i}"
                 ) / 100
                 hurdle = st.number_input(
-                    "Hurdle rate % (annual)", min_value=0.0, max_value=10.0, value=0.0, key=f"hurdle_{i}"
+                    "Hurdle rate % (annual)",
+                    min_value=0.0, max_value=10.0,
+                    value=0.0,
+                    key=f"hurdle_{i}"
                 ) / 100
-                tiers = []
 
             schemes.append({
-                'name': name,
-                'hwm': hwm,
+                'name':   name,
+                'hwm':    hwm,
                 'tiered': tiered,
-                'tiers': tiers,
-                'mgmt': mgmt if not tiered else 0.0,
-                'perf': perf if not tiered else 0.0,
-                'hurdle': hurdle if not tiered else 0.0
+                'tiers':  tiers,
+                'mgmt':   (mgmt   if not tiered else 0.0),
+                'perf':   (perf   if not tiered else 0.0),
+                'hurdle': (hurdle if not tiered else 0.0)
             })
 
     # Run Simulation
@@ -92,8 +133,13 @@ if uploaded:
         results = {}
         try:
             for scheme in schemes:
-                monthly_df, annual_rev = calculate_scheme(df, scheme, initial_aum)
-                results[scheme['name']] = {'monthly': monthly_df, 'annual': annual_rev}
+                monthly_df, annual_rev = calculate_scheme(
+                    df, scheme, initial_aum
+                )
+                results[scheme['name']] = {
+                    'monthly': monthly_df,
+                    'annual':  annual_rev
+                }
         except Exception as e:
             st.error(f"Simulation error: {e}")
             st.stop()
@@ -102,8 +148,12 @@ if uploaded:
         buffer = BytesIO()
         with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
             for name, data in results.items():
-                data['monthly'].to_excel(writer, sheet_name=f"{name}_Monthly", index=False)
-                data['annual'].to_excel(writer, sheet_name=f"{name}_Annual")
+                data['monthly'].to_excel(
+                    writer, sheet_name=f"{name}_Monthly", index=False
+                )
+                data['annual'].to_excel(
+                    writer, sheet_name=f"{name}_Annual"
+                )
         st.download_button(
             "Download Excel Results",
             buffer.getvalue(),
@@ -112,9 +162,9 @@ if uploaded:
 
         # Display Tables and Charts
         for name, data in results.items():
-            st.subheader(f"{name} - Monthly Results")
+            st.subheader(f"{name} – Monthly Results")
             st.dataframe(data['monthly'])
-            st.subheader(f"{name} - Annual Fee Revenue")
+            st.subheader(f"{name} – Annual Fee Revenue")
             st.dataframe(data['annual'])
 
         st.subheader("AUM Over Time")
@@ -146,9 +196,9 @@ if uploaded:
         st.altair_chart(bar, use_container_width=True)
 
         stats = pd.DataFrame({
-            'MeanFeeRev': fee_rev.mean(),
-            'StdDevFeeRev': fee_rev.std(),
-            'CoeffVarFeeRev': fee_rev.std() / fee_rev.mean()
+            'MeanFeeRev':      fee_rev.mean(),
+            'StdDevFeeRev':    fee_rev.std(),
+            'CoeffVarFeeRev':  fee_rev.std() / fee_rev.mean()
         })
         stats.index.name = 'Scheme'
         st.subheader("Annual Fee Revenue Statistics")
@@ -176,8 +226,17 @@ if uploaded:
         for name, data in results.items():
             monthly_net = data['monthly']['NetReturn']
             metrics = performance_metrics(monthly_net, rf=rf)
+            # Tracking error and Information Ratio
+            diff = monthly_net - monthly_bench
+            tracking_err = diff.std(ddof=0) * np.sqrt(12)
+            info_ratio = (
+                (metrics['Annualized Return'] - ann_ret_bench)
+                / tracking_err
+            ) if tracking_err else np.nan
+            metrics['Information Ratio'] = info_ratio
             metrics['Scheme'] = name
             perf_list.append(metrics)
+
         perf_df = pd.DataFrame(perf_list).set_index('Scheme')
         st.subheader("Risk-Adjusted Return Statistics")
         st.dataframe(perf_df)
