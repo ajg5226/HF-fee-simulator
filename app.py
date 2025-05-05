@@ -25,6 +25,26 @@ import config
 
 st.title("Hedge Fund Fee Simulator")
 
+with st.expander("ℹ️ Instructions", expanded=True):
+    st.markdown("""
+    **What this tool does:**  
+    Simulates hedge‐fund net returns and fee revenue under up to three different fee structures, and compares performance to a benchmark.
+
+    **How to use:**  
+    1. **Upload** a CSV of monthly returns with columns:
+       - `Date` in **YYYY-MM-DD** format  
+       - `GrossReturn` as a decimal (e.g. `0.015` for 1.5%)  
+    2. **Benchmark ticker:** (default SPY) – used to compute tracking error, beta, information ratio.  
+    3. **Initial AUM:** starting assets under management (formatted with commas).  
+    4. **Configure fee schemes:** up to 3, with options for management fees, performance fees, hurdles, tiered waterfalls, and high-water marks.  
+    5. Click **Run Simulation** to generate:
+       - Net‐return & fee‐revenue tables  
+       - AUM & cumulative-return charts  
+       - Risk-adjusted metrics (Sharpe, Sortino, Beta, IR)  
+       - Yearly net returns vs. benchmark  
+    6. **Download** your results as an Excel file for further analysis.
+    """)
+
 # 1) Upload & validate CSV
 uploaded = st.file_uploader("Upload monthly returns CSV", type=['csv'])
 if not uploaded:
