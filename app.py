@@ -32,13 +32,17 @@ if uploaded:
     start_date = df['Date'].min().strftime("%Y-%m-%d")
     end_date   = df['Date'].max().strftime("%Y-%m-%d")
     try:
-        bench_prices = yf.download(
+        bench_data = yf.download(
             bench_ticker,
             start=start_date,
             end=end_date,
             interval="1mo",
+            auto_adjust=True,
             progress=False
-        )['Adj Close']
+        )
+        if bench_data.empty:
+            raise ValueError("No benchmark data found for given date range.")
+        bench_prices = bench_data['Close']
         bench_returns = bench_prices.pct_change().dropna()
         # Align to fund dates
         bench_returns.index = pd.to_datetime(bench_returns.index).normalize()
@@ -48,6 +52,7 @@ if uploaded:
     except Exception as e:
         st.error(f"Error fetching benchmark data for {bench_ticker}: {e}")
         st.stop()
+
 
     # Annualized benchmark return
     n_periods = len(monthly_bench)
