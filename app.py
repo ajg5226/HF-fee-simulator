@@ -56,7 +56,7 @@ if uploaded:
     # Annualized benchmark return
     n_periods = len(monthly_bench)
     ann_ret_bench = (monthly_bench + 1).prod() ** (12 / n_periods) - 1
-    # Raw arrays for tracking error calculations
+    # Raw array for tracking error and beta calculations
     bench_arr = monthly_bench.to_numpy()
 
     # Initial AUM input
@@ -238,10 +238,25 @@ if uploaded:
                 info_ratio = float((metrics['Annualized Return'] - ann_ret_bench) / tracking_err)
             else:
                 info_ratio = np.nan
+            # Beta calculation
+            cov = np.cov(net_arr, bench_arr, ddof=0)[0, 1]
+            var_bench = float(np.var(bench_arr, ddof=0))
+            beta = float(cov / var_bench) if var_bench != 0 else np.nan
+            # Add metrics
+            metrics['Beta'] = beta
             metrics['Information Ratio'] = info_ratio
             metrics['Scheme'] = name
             perf_list.append(metrics)
 
         perf_df = pd.DataFrame(perf_list).set_index('Scheme')
+        # Reorder columns
+        perf_df = perf_df[[
+            'Annualized Return',
+            'Annualized Volatility',
+            'Beta',
+            'Sharpe Ratio',
+            'Sortino Ratio',
+            'Information Ratio'
+        ]]
         st.subheader("Risk-Adjusted Return Statistics")
         st.dataframe(perf_df)
