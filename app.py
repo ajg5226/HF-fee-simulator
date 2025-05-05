@@ -7,6 +7,14 @@ from io import BytesIO
 from feesim.engine import calculate_scheme, performance_metrics
 import config
 from feesim.benchmark import fetch_monthly_prices, align_to_dates
+from feesim.metrics import (
+    tracking_error,
+    information_ratio,
+    beta as calc_beta,
+    annualize_return,
+    yearly_returns
+)
+
 
 # Streamlit App
 st.title("Hedge Fund Fee Simulator")
@@ -34,10 +42,8 @@ if uploaded:
     raw_prices    = fetch_monthly_prices(bench_ticker, start_date, end_date)
     monthly_bench = align_to_dates(raw_prices, df['Date'])
 
-
-    # Annualized benchmark return and raw array
-    n_periods = len(monthly_bench)
-    ann_ret_bench = (monthly_bench + 1).prod() ** (12 / n_periods) - 1
+    # Annualized benchmark return
+    ann_ret_bench = annualize_return(monthly_bench)
     bench_arr = monthly_bench.to_numpy()
 
     # Initial AUM input
@@ -208,25 +214,19 @@ if uploaded:
         rf = config.RISK_FREE_RATE
         perf_list = []
         for name, data in results.items():
-            # Prepare arrays
-            net_arr = data['monthly']['NetReturn'].reset_index(drop=True).to_numpy()
-            # Standard performance metrics
-            metrics = performance_metrics(data['monthly']['NetReturn'], rf=rf)
-            # Tracking error & Information Ratio
-            diff_arr = net_arr - bench_arr
-            tracking_err = float(np.std(diff_arr, ddof=0) * np.sqrt(12))
-            if tracking_err != 0:
-                info_ratio = float((metrics['Annualized Return'] - ann_ret_bench) / tracking_err)
-            else:
-                info_ratio = np.nan
-            metrics['Information Ratio'] = info_ratio
-            # Beta calculation (sample covariance & variance)
-            net_mean = np.mean(net_arr)
-            bench_mean = np.mean(bench_arr)
-            cov_sample = np.sum((net_arr - net_mean) * (bench_arr - bench_mean)) / (len(net_arr) - 1)
-            var_bench_sample = np.sum((bench_arr - bench_mean) ** 2) / (len(bench_arr) - 1)
-            beta = cov_sample / var_bench_sample if var_bench_sample != 0 else np.nan
-            metrics['Beta'] = float(beta)
+            # 1) Compute tracking error
+            te = tracking_error(net_arr, bench_arr)
+
+            # 2) Compute Information Ratio
+            ir = information_ratio(metrics['Annualized Return'], ann_ret_bench, te)
+
+            # 3) Compute Beta
+            b  = calc_beta(net_arr, bench_arr)
+
+            metrics['Information Ratio'] = ir
+            metrics['Beta']              = b
+            metrics['Tracking Error'] = te
+
             metrics['Scheme'] = name
             perf_list.append(metrics)
 
@@ -245,20 +245,21 @@ if uploaded:
         # Yearly Net Returns vs Benchmark
         st.markdown("---")
         st.subheader("Yearly Net Returns vs Benchmark")
-        yearly_dict = {}
-        for name, data in results.items():
-            yearly_net = (
-                data['monthly']
-                  .groupby('Year')['NetReturn']
-                  .apply(lambda x: (x + 1).prod() - 1)
-            )
-            yearly_dict[name] = yearly_net
-        yearly_bench = (
-            monthly_bench
-              .groupby(monthly_bench.index.year)
-              .apply(lambda x: (x + 1).prod() - 1)
-        )
-        yearly_dict['Benchmark'] = yearly_bench
+        
+        # Yearly Net Returns vs Benchmark
+        st.markdown("---")
+        st.subheader("Yearly Net Returns vs Benchmark")
+        
+        yearly_dict = {
+            name: yearly_returns(data['monthly']['NetReturn'])
+            for name, data in results.items()
+        }
+        yearly_dict['Benchmark'] = yearly_returns(monthly_bench)
+        
+        # Build and display
+        yearly_df = pd.concat(yearly_dict, axis=1).sort_index()
+        st.dataframe(yearly_df)
+
         # Ensure each entry is 1-D:
         for k, v in yearly_dict.items():
             if isinstance(v, pd.DataFrame):
