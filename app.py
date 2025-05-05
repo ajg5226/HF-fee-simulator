@@ -53,10 +53,9 @@ if uploaded:
         st.error(f"Error fetching benchmark data for {bench_ticker}: {e}")
         st.stop()
 
-    # Annualized benchmark return
+    # Annualized benchmark return and raw array
     n_periods = len(monthly_bench)
     ann_ret_bench = (monthly_bench + 1).prod() ** (12 / n_periods) - 1
-    # Raw array for tracking error and beta calculations
     bench_arr = monthly_bench.to_numpy()
 
     # Initial AUM input
@@ -238,27 +237,25 @@ if uploaded:
                 info_ratio = float((metrics['Annualized Return'] - ann_ret_bench) / tracking_err)
             else:
                 info_ratio = np.nan
-            # Beta calculation
-            # Population covariance between net and bench
-            cov = np.mean((net_arr - net_arr.mean()) * (bench_arr - bench_arr.mean()))
-            # Population variance of benchmark
-            var_bench = np.var(bench_arr, ddof=0)
-            beta = cov / var_bench if var_bench != 0 else np.nan
-            # Add metrics
-            metrics['Beta'] = beta
+            # Beta calculation (sample covariance & variance)
+            net_mean = np.mean(net_arr)
+            bench_mean = np.mean(bench_arr)
+            cov_sample = np.sum((net_arr - net_mean) * (bench_arr - bench_mean)) / (len(net_arr) - 1)
+            var_bench_sample = np.sum((bench_arr - bench_mean) ** 2) / (len(bench_arr) - 1)
+            beta = cov_sample / var_bench_sample if var_bench_sample != 0 else np.nan
+            metrics['Beta'] = float(beta)
             metrics['Information Ratio'] = info_ratio
             metrics['Scheme'] = name
             perf_list.append(metrics)
 
         perf_df = pd.DataFrame(perf_list).set_index('Scheme')
-        # Reorder columns
-        perf_df = perf_df[[
-            'Annualized Return',
-            'Annualized Volatility',
-            'Beta',
-            'Sharpe Ratio',
-            'Sortino Ratio',
-            'Information Ratio'
-        ]]
+        perf_df = perf_df[
+            ['Annualized Return',
+             'Annualized Volatility',
+             'Beta',
+             'Sharpe Ratio',
+             'Sortino Ratio',
+             'Information Ratio']
+        ]
         st.subheader("Risk-Adjusted Return Statistics")
         st.dataframe(perf_df)
