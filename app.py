@@ -239,9 +239,11 @@ if uploaded:
             else:
                 info_ratio = np.nan
             # Beta calculation
-            cov = np.cov(net_arr, bench_arr, ddof=0)[0, 1]
-            var_bench = float(np.var(bench_arr, ddof=0))
-            beta = float(cov / var_bench) if var_bench != 0 else np.nan
+            # Population covariance between net and bench
+            cov = np.mean((net_arr - net_arr.mean()) * (bench_arr - bench_arr.mean()))
+            # Population variance of benchmark
+            var_bench = np.var(bench_arr, ddof=0)
+            beta = cov / var_bench if var_bench != 0 else np.nan
             # Add metrics
             metrics['Beta'] = beta
             metrics['Information Ratio'] = info_ratio
