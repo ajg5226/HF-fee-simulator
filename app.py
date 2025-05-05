@@ -3,10 +3,10 @@ import pandas as pd
 import numpy as np
 import altair as alt
 from io import BytesIO
-import yfinance as yf
 
 from feesim.engine import calculate_scheme, performance_metrics
 import config
+from feesim.benchmark import fetch_monthly_prices, align_to_dates
 
 # Streamlit App
 st.title("Hedge Fund Fee Simulator")
@@ -28,30 +28,12 @@ if uploaded:
     # Benchmark ticker input
     bench_ticker = st.text_input("Benchmark ticker", value="SPY")
 
-    # Download and compute monthly benchmark returns
+    # Fetch and align benchmark returns
     start_date = df['Date'].min().strftime("%Y-%m-%d")
     end_date   = df['Date'].max().strftime("%Y-%m-%d")
-    try:
-        bench_data = yf.download(
-            bench_ticker,
-            start=start_date,
-            end=end_date,
-            interval="1mo",
-            auto_adjust=True,
-            progress=False
-        )
-        if bench_data.empty or 'Close' not in bench_data.columns:
-            raise ValueError("No Close price data returned.")
-        bench_prices = bench_data['Close']
-        bench_returns = bench_prices.pct_change().dropna()
-        # Align to fund dates
-        bench_returns.index = pd.to_datetime(bench_returns.index).normalize()
-        monthly_bench = bench_returns.reindex(
-            df['Date'].dt.normalize()
-        ).ffill().fillna(0)
-    except Exception as e:
-        st.error(f"Error fetching benchmark data for {bench_ticker}: {e}")
-        st.stop()
+    raw_prices    = fetch_monthly_prices(bench_ticker, start_date, end_date)
+    monthly_bench = align_to_dates(raw_prices, df['Date'])
+
 
     # Annualized benchmark return and raw array
     n_periods = len(monthly_bench)
