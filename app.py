@@ -40,8 +40,8 @@ if uploaded:
             auto_adjust=True,
             progress=False
         )
-        if bench_data.empty:
-            raise ValueError("No benchmark data found for given date range.")
+        if bench_data.empty or 'Close' not in bench_data.columns:
+            raise ValueError("No Close price data returned.")
         bench_prices = bench_data['Close']
         bench_returns = bench_prices.pct_change().dropna()
         # Align to fund dates
@@ -52,7 +52,6 @@ if uploaded:
     except Exception as e:
         st.error(f"Error fetching benchmark data for {bench_ticker}: {e}")
         st.stop()
-
 
     # Annualized benchmark return
     n_periods = len(monthly_bench)
@@ -201,9 +200,9 @@ if uploaded:
         st.altair_chart(bar, use_container_width=True)
 
         stats = pd.DataFrame({
-            'MeanFeeRev':      fee_rev.mean(),
-            'StdDevFeeRev':    fee_rev.std(),
-            'CoeffVarFeeRev':  fee_rev.std() / fee_rev.mean()
+            'MeanFeeRev':     fee_rev.mean(),
+            'StdDevFeeRev':   fee_rev.std(),
+            'CoeffVarFeeRev': fee_rev.std() / fee_rev.mean()
         })
         stats.index.name = 'Scheme'
         st.subheader("Annual Fee Revenue Statistics")
@@ -234,10 +233,10 @@ if uploaded:
             # Tracking error and Information Ratio
             diff = monthly_net - monthly_bench
             tracking_err = diff.std(ddof=0) * np.sqrt(12)
-            info_ratio = (
-                (metrics['Annualized Return'] - ann_ret_bench)
-                / tracking_err
-            ) if tracking_err else np.nan
+            if tracking_err != 0:
+                info_ratio = (metrics['Annualized Return'] - ann_ret_bench) / tracking_err
+            else:
+                info_ratio = np.nan
             metrics['Information Ratio'] = info_ratio
             metrics['Scheme'] = name
             perf_list.append(metrics)
