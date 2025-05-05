@@ -237,6 +237,7 @@ if uploaded:
                 info_ratio = float((metrics['Annualized Return'] - ann_ret_bench) / tracking_err)
             else:
                 info_ratio = np.nan
+            metrics['Information Ratio'] = info_ratio
             # Beta calculation (sample covariance & variance)
             net_mean = np.mean(net_arr)
             bench_mean = np.mean(bench_arr)
@@ -244,7 +245,6 @@ if uploaded:
             var_bench_sample = np.sum((bench_arr - bench_mean) ** 2) / (len(bench_arr) - 1)
             beta = cov_sample / var_bench_sample if var_bench_sample != 0 else np.nan
             metrics['Beta'] = float(beta)
-            metrics['Information Ratio'] = info_ratio
             metrics['Scheme'] = name
             perf_list.append(metrics)
 
@@ -261,6 +261,7 @@ if uploaded:
         st.dataframe(perf_df)
 
         # Yearly Net Returns vs Benchmark
+        st.markdown("---")
         st.subheader("Yearly Net Returns vs Benchmark")
         yearly_dict = {}
         for name, data in results.items():
