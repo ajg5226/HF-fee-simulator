@@ -14,6 +14,7 @@ from feesim.metrics import (
     annualize_return,
     yearly_returns
 )
+from feesim.utils import read_validate_csv, parse_aum
 
 
 # Streamlit App
@@ -22,16 +23,11 @@ st.title("Hedge Fund Fee Simulator")
 uploaded = st.file_uploader("Upload monthly returns CSV", type=['csv'])
 if uploaded:
     # Load and validate CSV
-    try:
-        df = pd.read_csv(uploaded, parse_dates=['Date'])
-    except Exception as e:
-        st.error(f"Error reading CSV: {e}")
-        st.stop()
-    df.sort_values('Date', inplace=True)
-    missing = [c for c in config.REQUIRED_COLUMNS if c not in df.columns]
-    if missing:
-        st.error(f"CSV missing required columns: {', '.join(missing)}")
-        st.stop()
+     try:
+         df = read_validate_csv(uploaded, config.REQUIRED_COLUMNS)
+     except ValueError as e:
+         st.error(str(e))
+         st.stop()
 
     # Benchmark ticker input
     bench_ticker = st.text_input("Benchmark ticker", value="SPY")
@@ -47,15 +43,12 @@ if uploaded:
     bench_arr = monthly_bench.to_numpy()
 
     # Initial AUM input
-    initial_aum_str = st.text_input(
-        "Initial AUM",
-        value=f"{config.DEFAULT_AUM:,.2f}"
-    )
-    try:
-        initial_aum = float(initial_aum_str.replace(",", ""))
-    except ValueError:
-        st.error("Invalid AUM format. Please enter a number like 100,000,000.00")
-        st.stop()
+    initial_aum_str = st.text_input("Initial AUM", value=f"{config.DEFAULT_AUM:,.2f}")
+     try:
+         initial_aum = parse_aum(initial_aum_str)
+     except ValueError as e:
+         st.error(str(e))
+         st.stop()
 
     # Fee schemes configuration
     n_schemes = st.number_input(
