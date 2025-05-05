@@ -1,4 +1,3 @@
-```python
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -238,5 +237,4 @@ if uploaded:
         perf_df = pd.DataFrame(perf_list).set_index('Scheme')
         st.subheader("Risk-Adjusted Return Statistics")
         st.dataframe(perf_df)
-```
 
