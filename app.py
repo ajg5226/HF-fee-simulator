@@ -259,3 +259,22 @@ if uploaded:
         ]
         st.subheader("Risk-Adjusted Return Statistics")
         st.dataframe(perf_df)
+
+        # Yearly Net Returns vs Benchmark
+        st.subheader("Yearly Net Returns vs Benchmark")
+        yearly_dict = {}
+        for name, data in results.items():
+            yearly_net = (
+                data['monthly']
+                  .groupby('Year')['NetReturn']
+                  .apply(lambda x: (x + 1).prod() - 1)
+            )
+            yearly_dict[name] = yearly_net
+        yearly_bench = (
+            monthly_bench
+              .groupby(monthly_bench.index.year)
+              .apply(lambda x: (x + 1).prod() - 1)
+        )
+        yearly_dict['Benchmark'] = yearly_bench
+        yearly_df = pd.DataFrame(yearly_dict).sort_index()
+        st.dataframe(yearly_df)
