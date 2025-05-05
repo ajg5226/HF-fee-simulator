@@ -56,8 +56,8 @@ if uploaded:
     # Annualized benchmark return
     n_periods = len(monthly_bench)
     ann_ret_bench = (monthly_bench + 1).prod() ** (12 / n_periods) - 1
-    # Raw array for tracking error
-    bench_arr = monthly_bench.values
+    # Raw arrays for tracking error calculations
+    bench_arr = monthly_bench.to_numpy()
 
     # Initial AUM input
     initial_aum_str = st.text_input(
@@ -90,27 +90,34 @@ if uploaded:
                     st.markdown(f"**Tier {t+1}**")
                     if t < n_tiers - 1:
                         thresh = st.number_input(
-                            "Upper threshold (decimal)", min_value=0.0, max_value=1.0,
-                            value=0.01*(t+1), key=f"thresh_{i}_{t}"
+                            "Upper threshold (decimal)",
+                            min_value=0.0, max_value=1.0,
+                            value=0.01*(t+1),
+                            key=f"thresh_{i}_{t}"
                         )
                     else:
                         thresh = None
                     share = st.number_input(
-                        "Manager share (0-1)", min_value=0.0, max_value=1.0,
-                        value=0.5, key=f"share_{i}_{t}"
+                        "Manager share (0-1)",
+                        min_value=0.0, max_value=1.0,
+                        value=0.5,
+                        key=f"share_{i}_{t}"
                     )
                     tiers.append({'threshold': thresh, 'manager_share': share})
             else:
                 mgmt   = st.number_input(
-                    "Mgmt fee % (annual)", min_value=0.0, max_value=5.0,
+                    "Mgmt fee % (annual)",
+                    min_value=0.0, max_value=5.0,
                     value=2.0, key=f"mgmt_{i}"
                 ) / 100
                 perf   = st.number_input(
-                    "Perf fee %", min_value=0.0, max_value=100.0,
+                    "Perf fee %",
+                    min_value=0.0, max_value=100.0,
                     value=20.0, key=f"perf_{i}"
                 ) / 100
                 hurdle = st.number_input(
-                    "Hurdle rate % (annual)", min_value=0.0, max_value=10.0,
+                    "Hurdle rate % (annual)",
+                    min_value=0.0, max_value=10.0,
                     value=0.0, key=f"hurdle_{i}"
                 ) / 100
 
@@ -220,14 +227,15 @@ if uploaded:
         rf = config.RISK_FREE_RATE
         perf_list = []
         for name, data in results.items():
-            monthly_net = data['monthly']['NetReturn']
-            metrics = performance_metrics(monthly_net, rf=rf)
-            # Tracking error and Information Ratio
-            net_arr = monthly_net.values
+            # Prepare arrays
+            net_arr = data['monthly']['NetReturn'].reset_index(drop=True).to_numpy()
+            # Standard performance metrics
+            metrics = performance_metrics(data['monthly']['NetReturn'], rf=rf)
+            # Tracking error & Information Ratio
             diff_arr = net_arr - bench_arr
-            tracking_err = np.std(diff_arr, ddof=0) * np.sqrt(12)
+            tracking_err = float(np.std(diff_arr, ddof=0) * np.sqrt(12))
             if tracking_err != 0:
-                info_ratio = (metrics['Annualized Return'] - ann_ret_bench) / tracking_err
+                info_ratio = float((metrics['Annualized Return'] - ann_ret_bench) / tracking_err)
             else:
                 info_ratio = np.nan
             metrics['Information Ratio'] = info_ratio
@@ -237,4 +245,3 @@ if uploaded:
         perf_df = pd.DataFrame(perf_list).set_index('Scheme')
         st.subheader("Risk-Adjusted Return Statistics")
         st.dataframe(perf_df)
-
