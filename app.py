@@ -161,11 +161,11 @@ if st.button("Run Simulation"):
     ]]
     show_table("Risk-Adjusted Return Statistics", perf_df)
 
-    # Yearly Net Returns vs Benchmark
+    # Yearly Net Returns vs Benchmark (price‐based, daily)
     st.markdown("---")
     st.subheader("Yearly Net Returns vs Benchmark")
     
-    # 1) Fund: compound each year's NetReturn
+    # 1) Fund: same as before
     yearly_dict = {
         name: yearly_returns(
             data['monthly'].set_index('Date')['NetReturn']
@@ -173,14 +173,26 @@ if st.button("Run Simulation"):
         for name, data in results.items()
     }
     
-    # 2) Benchmark: compound the raw monthly returns by year
-    #    bench_returns = raw_prices.pct_change().dropna()
-    bench_yearly = bench_returns.groupby(bench_returns.index.year) \
-                                .apply(lambda x: (x + 1).prod() - 1)
-    bench_yearly.index.name = 'Year'
+    # 2) Benchmark: fetch daily closes and resample
+    daily = yf.download(
+        bench_ticker,
+        start=f"{df['Date'].dt.year.min()}-01-01",
+        end=f"{df['Date'].dt.year.max()+1}-01-01",  # up to Jan 1 of next year
+        interval="1d",
+        auto_adjust=True,
+        progress=False
+    )['Close']
+    
+    # Get first and last price in each calendar year
+    price_start = daily.resample('Y').first()  # first trading day of each year
+    price_end   = daily.resample('Y').last()   # last trading day of each year
+    
+    # Compute year-by-year returns
+    bench_yearly = (price_end / price_start) - 1
+    bench_yearly.index = bench_yearly.index.year  # label by year
     
     yearly_dict['Benchmark'] = bench_yearly
     
-    # 3) Build & display
+    # 3) Build and display
     yearly_df = pd.concat(yearly_dict, axis=1).sort_index()
     show_table("Yearly Net Returns vs Benchmark", yearly_df)
