@@ -163,10 +163,12 @@ if st.button("Run Simulation"):
     # Yearly Net Returns vs Benchmark
     st.markdown("---")
     st.subheader("Yearly Net Returns vs Benchmark")
+    # Ensure the series has a DatetimeIndex
     yearly_dict = {
-        name: yearly_returns(data['monthly']['NetReturn'])
+        name: yearly_returns(data['monthly'].set_index('Date')['NetReturn'])
         for name, data in results.items()
     }
     yearly_dict['Benchmark'] = yearly_returns(monthly_bench)
     yearly_df = pd.concat(yearly_dict, axis=1).sort_index()
     show_table("Yearly Net Returns vs Benchmark", yearly_df)
+
