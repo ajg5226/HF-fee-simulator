@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import altair as alt
+import yfinance as yf
 
 from feesim.utils import read_validate_csv, parse_aum
 from feesim.benchmark import fetch_monthly_prices, align_to_dates
