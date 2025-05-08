@@ -60,12 +60,13 @@ except ValueError as e:
 bench_ticker = input_benchmark()
 schemes      = input_fee_schemes()
 
-# 3) Fetch & align benchmark
+# 3) Fetch & align benchmark **returns**, not just prices
 start_date = df['Date'].min().strftime("%Y-%m-%d")
 end_date   = df['Date'].max().strftime("%Y-%m-%d")
 try:
     raw_prices    = fetch_monthly_prices(bench_ticker, start_date, end_date)
-    monthly_bench = align_to_dates(raw_prices, df['Date'])
+    bench_returns = raw_prices.pct_change().dropna()
+    monthly_bench = align_to_dates(bench_returns, df['Date'])
 except ValueError as e:
     st.error(str(e))
     st.stop()
