@@ -33,19 +33,21 @@ def fetch_monthly_prices(ticker: str, start: str, end: str) -> pd.Series:
     return prices
 
 
-def align_to_dates(prices: pd.Series, dates: pd.DatetimeIndex) -> pd.Series:
+def align_to_dates(prices: pd.Series, dates) -> pd.Series:
     """
     Reindex the monthly `prices` Series to match the exact set of `dates`.
     Forward-fills missing values and fills any gaps with zeros.
-
-    Args:
-        prices: pandas Series of prices with a DatetimeIndex.
-        dates:  DatetimeIndex from the fund's returns DataFrame.
-
-    Returns:
-        A pandas Series aligned to `dates`, with no NaNs.
+    Accepts either a DatetimeIndex or a Series of Timestamps.
     """
-    # Normalize both index sets
-    target_index = pd.to_datetime(dates).normalize()
+    # Normalize the dates (handle both Series and Index)
+    dt_index = pd.to_datetime(dates)
+    if isinstance(dt_index, pd.Series):
+        normalized = dt_index.dt.normalize()
+    else:
+        normalized = dt_index.normalize()
+
+    # Ensure it's a proper Index for reindexing
+    target_index = pd.DatetimeIndex(normalized)
     aligned = prices.reindex(target_index).ffill().fillna(0)
     return aligned
+
