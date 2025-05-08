@@ -5,7 +5,7 @@ import altair as alt
 
 from feesim.utils import read_validate_csv, parse_aum
 from feesim.benchmark import fetch_monthly_prices, align_to_dates
-from feesim.engine import calculate_scheme
+from feesim.engine import calculate_scheme, performance_metrics
 from feesim.metrics import (
     tracking_error,
     information_ratio,
